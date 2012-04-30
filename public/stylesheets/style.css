@@ -6,3 +6,12 @@ body {
 a {
   color: #00B7FF;
 }
+
+div #userlist{
+	float:left;
+	width: 200px;
+}
+
+div #chat{
+	float:left;
+}

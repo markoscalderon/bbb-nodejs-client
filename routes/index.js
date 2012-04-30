@@ -4,9 +4,14 @@
  */
 
 exports.index = function(req, res){
-  res.render('index', { title: 'BigBlueButton Node.js Client' })
+	//Rooms
+	var roomnames = ['Demo Meeting','English 232','English 411'];
+	
+  res.render('index', { title: 'BigBlueButton Node.js Client', rooms: roomnames })
 };
 
-exports.client = function(req, res){
-	res.render('client', { title: 'Client', user: req.param("username") });
+exports.join = function(req, res){
+	console.log("checking variable: " + req.query.username + req.query.meetingID);
+	res.contentType('application/json');
+	res.send(JSON.stringify({username: req.query.username, meetingID: req.query.meetingID }));
 };

@@ -32,17 +32,57 @@ app.configure('production', function(){
 var participants_module = require('./bbb_modules/participants');
 participants_module.hello();
 
+//Rooms
+var rooms = {};
+rooms['Demo Meeting'] = {};
+rooms['English 232'] = {};
+rooms['English 411'] = {};
+
 // Routes
 
 app.get('/', routes.index);
-app.get('/client',routes.client);
+app.get('/join',routes.join);
 
 app.listen(3000);
 console.log("Express server listening on port %d in %s mode", app.address().port, app.settings.env);
 
 io.sockets.on('connection', function (socket) {
-	socket.emit('news', { hello: 'world' });
-	socket.on('my other event', function (data) {
-		console.log(data);
+	// when the client emits 'sendchat', this listens and executes
+	socket.on('sendchat', function (data) {
+		// we tell the client to execute 'updatechat' with 2 parameters
+		io.sockets.to(socket.room).emit('updatechat', socket.username, data);
 	});
+	
+	// when the client emits 'adduser', this listens and executes
+	socket.on('adduser', function(username, meetingID){
+		// we store the username and the room in the socket session for this client
+		socket.username = username;
+		socket.room = meetingID;
+		
+		// add the client's username to the room
+		rooms[meetingID][username] = username;
+		
+		//join a socket to a room
+		socket.join(meetingID);
+		
+		// echo to client they've connected
+		socket.emit('updatechat', 'SERVER', 'you have connected to ' + meetingID);
+		
+		// echo to the room that a person has connected
+		socket.broadcast.to(meetingID).emit('updatechat', 'SERVER', username + ' has connected');
+		
+		// update the list of users in chat, client-side
+		io.sockets.to(meetingID).emit('updateusers', rooms[meetingID]);
+	});
+	
+	// when the user disconnects.. perform this
+	socket.on('disconnect', function(){
+		// remove the username from global usernames list
+		delete rooms[socket.room][socket.username];
+		// update list of users in chat, client-side
+		io.sockets.to(socket.room).emit('updateusers', rooms[socket.room]);
+		// echo globally that this client has left
+		socket.broadcast.to(socket.room).emit('updatechat', 'SERVER', socket.username + ' has disconnected');
+	});	
+		
 });

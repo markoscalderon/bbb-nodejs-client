@@ -1,14 +1,26 @@
 h1= title
 p Welcome to #{title}
-form(method="get",action="/client")
-	label(for="username") Your name:
-		input(type="text", name="username")
-	button(type="submit") Enviar
-	
-script(type='text/javascript')
-	var socket = io.connect('http://localhost:3000');
-	socket.on('news', function (data) {
-		console.log(data);
-		socket.emit('my other event', { my: 'data' });
-	});
+#login
+	p
+		label(for="meetingID") Meeting:
+		select(id="meetingID")
+			- rooms.forEach(function(item){
+			option(value="#{item}") #{item}
+			- })
+	p
+		label(for="username") Your name:
+		input(type="text", id="username")
+	p
+		button(type="button",id="btnLogin") Enviar
+
+#main
+	#userlist
+		h3 Users
+		#users
+	#chat
+		h3 BigBlueButton Chat
+		#history
+		#sendmsg
+			input(type="text",id="msg")
+			button(type="button",id="btnSendMsg") Enviar
 	
