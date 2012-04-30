@@ -2,4 +2,25 @@ BigBlueButton Node.js Client
 
 For run the project:
 
+=======
+Install node.js
+
+git clone https://github.com/joyent/node.git
+cd node
+git checkout v0.6.6
+./configure
+sudo make
+sudo make install
+
+Install npm
+
+git clone https://github.com/isaacs/npm
+cd npm
+sudo make install
+
+Run the project
+
+git clone git://github.com/markoscalderon/bbb-nodejs-client.git
+cd bbb-nodejs-client
+npm install
 node app.js
