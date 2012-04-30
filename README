@@ -1,1 +1,5 @@
 BigBlueButton Node.js Client
+
+For run the project:
+
+node app.js

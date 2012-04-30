@@ -34,10 +34,6 @@ participants_module.hello();
 
 //Rooms
 var rooms = {};
-rooms['Demo Meeting'] = {};
-rooms['English 232'] = {};
-rooms['English 411'] = {};
-
 // Routes
 
 app.get('/', routes.index);
@@ -59,6 +55,11 @@ io.sockets.on('connection', function (socket) {
 		socket.username = username;
 		socket.room = meetingID;
 		
+		// if room doesn't exist create it...
+		if(rooms[meetingID] == undefined){
+			rooms[meetingID] = {}
+		}
+		
 		// add the client's username to the room
 		rooms[meetingID][username] = username;
 		
@@ -79,6 +80,12 @@ io.sockets.on('connection', function (socket) {
 	socket.on('disconnect', function(){
 		// remove the username from global usernames list
 		delete rooms[socket.room][socket.username];
+		
+		//delete room if the room is empty
+		if(Object.keys(rooms[socket.room]).length == 0){
+			delete rooms[socket.room];
+		}
+		
 		// update list of users in chat, client-side
 		io.sockets.to(socket.room).emit('updateusers', rooms[socket.room]);
 		// echo globally that this client has left
