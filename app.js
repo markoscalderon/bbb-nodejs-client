@@ -8,6 +8,10 @@ var express = require('express')
 
 var app = module.exports = express.createServer()
 	, io = require('socket.io').listen(app);
+	
+//redis
+var redis = require("redis"),
+        publisher = redis.createClient();
 
 // Configuration
 
@@ -43,53 +47,109 @@ app.listen(3000);
 console.log("Express server listening on port %d in %s mode", app.address().port, app.settings.env);
 
 io.sockets.on('connection', function (socket) {
+	subscriber = redis.createClient();
+	
+	subscriber.on("pmessage",function (pattern, channel, message) {
+		var obj = eval('(' + message + ')');
+		var username = obj["username"];
+		var meetingID = obj["meetingID"];
+		var evt = obj["event"];
+		var protocol = obj["protocol"];
+		
+		if(channel == "bigbluebutton:bridge:participants"){
+			
+			//checking if the event is join
+			if(evt == "join"){
+				// if room doesn't exist create it...
+				if(rooms[meetingID] == undefined){
+					rooms[meetingID] = {}
+				}
+				// add the client's username to the room
+				rooms[meetingID][username] = username;
+				
+				if(socket.username == undefined){
+					
+					if(protocol == "websockets"){
+						// we store the username and the room in the socket session for this client
+						socket.username = username;
+						socket.room = meetingID;
+						//join a socket to a room
+						socket.join(meetingID);
+						// echo to client they've connected
+						socket.emit('updatechat', 'SERVER', 'you have connected to ' + meetingID);
+					}
+				}
+				
+				// echo to the room that a person has connected
+				socket.broadcast.to(meetingID).emit('updatechat', 'SERVER', username + ' has connected');
+
+				// update the list of users in chat, client-side
+				socket.to(meetingID).emit('updateusers', rooms[meetingID]);
+			}
+			else if(evt == "leave"){
+				// remove the username from global usernames list
+				delete rooms[meetingID][username];
+
+				//delete room if the room is empty
+				if(Object.keys(rooms[meetingID]).length == 0){
+					delete rooms[meetingID];
+				}
+				
+				// update list of users in chat, client-side
+				io.sockets.to(meetingID).emit('updateusers', rooms[meetingID]);
+				// echo globally that this client has left
+				socket.broadcast.to(meetingID).emit('updatechat', 'SERVER', username + ' has disconnected');
+			}
+		}else if(channel == "bigbluebutton:bridge:chat"){
+			if(evt == "newMessage"){
+				var message = obj["message"];
+				// we tell the client to execute 'updatechat' with 2 parameters
+				socket.to(meetingID).emit('updatechat', username, message);
+			}
+			
+		}
+	});
+	
+	
+	subscriber.psubscribe("bigbluebutton:*");
+	
 	// when the client emits 'sendchat', this listens and executes
 	socket.on('sendchat', function (data) {
-		// we tell the client to execute 'updatechat' with 2 parameters
-		io.sockets.to(socket.room).emit('updatechat', socket.username, data);
+		console.log("test: "+socket.username)
+		var obj = {};
+		obj["username"] = socket.username;
+		obj["meetingID"] = socket.room;
+		obj["event"] = "newMessage";
+		obj["protocol"] = "websockets";
+		obj["message"] = data;
+		
+		publisher.publish("bigbluebutton:bridge:chat", JSON.stringify(obj));
+		
 	});
 	
 	// when the client emits 'adduser', this listens and executes
 	socket.on('adduser', function(username, meetingID){
-		// we store the username and the room in the socket session for this client
-		socket.username = username;
-		socket.room = meetingID;
 		
-		// if room doesn't exist create it...
-		if(rooms[meetingID] == undefined){
-			rooms[meetingID] = {}
-		}
-		
-		// add the client's username to the room
-		rooms[meetingID][username] = username;
-		
-		//join a socket to a room
-		socket.join(meetingID);
-		
-		// echo to client they've connected
-		socket.emit('updatechat', 'SERVER', 'you have connected to ' + meetingID);
-		
-		// echo to the room that a person has connected
-		socket.broadcast.to(meetingID).emit('updatechat', 'SERVER', username + ' has connected');
-		
-		// update the list of users in chat, client-side
-		io.sockets.to(meetingID).emit('updateusers', rooms[meetingID]);
+		//Add the user to the list using redis pubsub
+		var obj = {};
+		obj["username"] = username;
+		obj["meetingID"] = meetingID;
+		obj["event"] = "join";
+		obj["protocol"] = "websockets";
+		publisher.publish("bigbluebutton:bridge:participants", JSON.stringify(obj));
+
 	});
 	
 	// when the user disconnects.. perform this
 	socket.on('disconnect', function(){
-		// remove the username from global usernames list
-		delete rooms[socket.room][socket.username];
+		//Remove the user using redis pubsub
+		var obj = {};
+		obj["username"] = socket.username;
+		obj["meetingID"] = socket.room;
+		obj["event"] = "leave";
+		obj["protocol"] = "websockets";
+		publisher.publish("bigbluebutton:bridge:participants", JSON.stringify(obj));
 		
-		//delete room if the room is empty
-		if(Object.keys(rooms[socket.room]).length == 0){
-			delete rooms[socket.room];
-		}
-		
-		// update list of users in chat, client-side
-		io.sockets.to(socket.room).emit('updateusers', rooms[socket.room]);
-		// echo globally that this client has left
-		socket.broadcast.to(socket.room).emit('updatechat', 'SERVER', socket.username + ' has disconnected');
 	});	
 		
 });
