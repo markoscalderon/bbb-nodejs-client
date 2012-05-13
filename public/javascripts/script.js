@@ -34,7 +34,7 @@ $(function(){
 	});
 });
 
-var socket = io.connect('http://192.168.1.152:3000');
+var socket = io.connect('http://10.250.2.215:3000');
 socket.on('connect', function () {
 	console.log("socket connection works!");
 });
